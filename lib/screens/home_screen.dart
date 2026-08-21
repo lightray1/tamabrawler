@@ -7,6 +7,8 @@ import '../services/sound_service.dart';
 import '../widgets/pet_sprite.dart';
 import '../widgets/stat_bar.dart';
 import '../widgets/action_button.dart';
+import '../services/battle_pve_service.dart';
+import 'battle_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final SoundService soundService;
@@ -268,14 +270,75 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
-          // Placeholder for Battle Arena
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Battle Arena coming soon!')),
+          if (!_pet.isAlive) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Revive your pet first!')),
+            );
+            return;
+          }
+          if (_pet.energy <= 0) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Pet has no energy to battle!')),
+            );
+            return;
+          }
+
+          showDialog(
+            context: context,
+            builder: (context) {
+              return AlertDialog(
+                title: const Text('Select Difficulty'),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ListTile(
+                      title: const Text('Easy (Slimes, Bats)'),
+                      onTap: () {
+                        Navigator.of(context).pop();
+                        _startBattle(Difficulty.easy);
+                      },
+                    ),
+                    ListTile(
+                      title: const Text('Medium (Mixed)'),
+                      onTap: () {
+                        Navigator.of(context).pop();
+                        _startBattle(Difficulty.medium);
+                      },
+                    ),
+                    ListTile(
+                      title: const Text('Hard (Goblins, Bosses)'),
+                      onTap: () {
+                        Navigator.of(context).pop();
+                        _startBattle(Difficulty.hard);
+                      },
+                    ),
+                  ],
+                ),
+              );
+            }
           );
         },
         backgroundColor: Colors.redAccent,
         child: const Icon(Icons.sports_martial_arts, color: Colors.white),
       ),
     );
+  }
+
+  void _startBattle(Difficulty difficulty) async {
+    // Navigate to Battle Screen
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => BattleScreen(
+          pet: _pet,
+          soundService: widget.soundService,
+          difficulty: difficulty,
+        )
+      )
+    );
+
+    // Resume BGM when returning from battle
+    widget.soundService.playBgm();
+    _saveGame();
+    setState(() {}); // refresh stats on home screen
   }
 }

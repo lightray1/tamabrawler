@@ -21,6 +21,10 @@ class Pet {
   int _energyTimer = 0;
   int _healthTimer = 0;
 
+  int get battleAttack => level * 2 + (happiness ~/ 5);
+  int get battleDefense => (level * 1.5).floor() + (energy ~/ 5);
+  int get battleSpeed => (happiness ~/ 5) + (energy ~/ 5);
+
   Pet({
     this.name = 'Tamabrawler',
     this.hunger = 70,
