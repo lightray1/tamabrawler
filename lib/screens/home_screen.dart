@@ -9,14 +9,16 @@ import '../widgets/stat_bar.dart';
 import '../widgets/action_button.dart';
 import '../services/battle_pve_service.dart';
 import 'battle_screen.dart';
+import 'evolve_screen.dart';
+import 'pvp_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final SoundService soundService;
 
-  const HomeScreen({Key? key, required this.soundService}) : super(key: key);
+  const HomeScreen({super.key, required this.soundService});
 
   @override
-  _HomeScreenState createState() => _HomeScreenState();
+  State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
@@ -139,10 +141,33 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _revive() {
     setState(() {
-      _pet = Pet(); // Reset pet for now
+      // Keep current stage and level when reviving, just restore health and other stats somewhat
+      _pet.health = _pet.getMaxStat();
+      _pet.hunger = _pet.getMaxStat() ~/ 2;
+      _pet.happiness = _pet.getMaxStat() ~/ 2;
+      _pet.energy = _pet.getMaxStat();
+      _pet.isAlive = true;
       _setPetState(PetState.idle);
     });
     _saveGame();
+  }
+
+  Future<void> _checkEvolution() async {
+    // This will be called after returning from battle to check if a level up crossed a threshold
+    if (_pet.pendingEvolution) {
+      _pet.clearEvolutionPending();
+      _pet.health = _pet.getMaxStat();
+      _pet.energy = _pet.getMaxStat();
+      _saveGame();
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => EvolveScreen(pet: _pet, soundService: widget.soundService),
+        ),
+      );
+      // Restart BGM since evolve screen might have played victory and stopped it
+      widget.soundService.playBgm();
+      setState(() {});
+    }
   }
 
   @override
@@ -175,7 +200,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   },
                 ),
               ),
-              // Level Indicator
+              // Level and Stage Indicator
               Positioned(
                 top: 16,
                 right: 16,
@@ -185,13 +210,24 @@ class _HomeScreenState extends State<HomeScreen> {
                     color: Colors.black54,
                     borderRadius: BorderRadius.circular(16),
                   ),
-                  child: Text(
-                    'Level ${_pet.level}',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
+                  child: Column(
+                    children: [
+                      Text(
+                        'Level ${_pet.level}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                      Text(
+                        'Stage: ${_pet.getStageName()}',
+                        style: const TextStyle(
+                          color: Colors.amber,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -226,10 +262,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   Expanded(
                     child: Column(
                       children: [
-                        StatBar(label: 'Hunger', value: _pet.hunger),
-                        StatBar(label: 'Happiness', value: _pet.happiness),
-                        StatBar(label: 'Energy', value: _pet.energy),
-                        StatBar(label: 'Health', value: _pet.health),
+                        StatBar(label: 'Hunger', value: _pet.hunger, maxValue: _pet.getMaxStat()),
+                        StatBar(label: 'Happiness', value: _pet.happiness, maxValue: _pet.getMaxStat()),
+                        StatBar(label: 'Energy', value: _pet.energy, maxValue: _pet.getMaxStat()),
+                        StatBar(label: 'Health', value: _pet.health, maxValue: _pet.getMaxStat()),
                       ],
                     ),
                   ),
@@ -268,60 +304,141 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          if (!_pet.isAlive) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Revive your pet first!')),
-            );
-            return;
-          }
-          if (_pet.energy <= 0) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Pet has no energy to battle!')),
-            );
-            return;
-          }
+      floatingActionButton: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          FloatingActionButton(
+            heroTag: "pvp_fab",
+            onPressed: () async {
+              if (!_pet.isAlive || _pet.energy < 15) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Pet must be alive and have at least 15 energy for PvP!')),
+                );
+                return;
+              }
+              _showPvPSetupDialog();
+            },
+            backgroundColor: Colors.blueAccent,
+            child: const Icon(Icons.people, color: Colors.white),
+          ),
+          const SizedBox(height: 16),
+          FloatingActionButton(
+            heroTag: "pve_fab",
+            onPressed: () {
+              if (!_pet.isAlive) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Revive your pet first!')),
+                );
+                return;
+              }
+              if (_pet.energy <= 0) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Pet has no energy to battle!')),
+                );
+                return;
+              }
 
-          showDialog(
-            context: context,
-            builder: (context) {
-              return AlertDialog(
-                title: const Text('Select Difficulty'),
-                content: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    ListTile(
-                      title: const Text('Easy (Slimes, Bats)'),
-                      onTap: () {
-                        Navigator.of(context).pop();
-                        _startBattle(Difficulty.easy);
-                      },
+              showDialog(
+                context: context,
+                builder: (context) {
+                  return AlertDialog(
+                    title: const Text('Select Difficulty'),
+                    content: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        ListTile(
+                          title: const Text('Easy (Slimes, Bats)'),
+                          onTap: () {
+                            Navigator.of(context).pop();
+                            _startBattle(Difficulty.easy);
+                          },
+                        ),
+                        ListTile(
+                          title: const Text('Medium (Mixed)'),
+                          onTap: () {
+                            Navigator.of(context).pop();
+                            _startBattle(Difficulty.medium);
+                          },
+                        ),
+                        ListTile(
+                          title: const Text('Hard (Goblins, Bosses)'),
+                          onTap: () {
+                            Navigator.of(context).pop();
+                            _startBattle(Difficulty.hard);
+                          },
+                        ),
+                      ],
                     ),
-                    ListTile(
-                      title: const Text('Medium (Mixed)'),
-                      onTap: () {
-                        Navigator.of(context).pop();
-                        _startBattle(Difficulty.medium);
-                      },
-                    ),
-                    ListTile(
-                      title: const Text('Hard (Goblins, Bosses)'),
-                      onTap: () {
-                        Navigator.of(context).pop();
-                        _startBattle(Difficulty.hard);
-                      },
-                    ),
-                  ],
-                ),
+                  );
+                }
               );
-            }
-          );
-        },
-        backgroundColor: Colors.redAccent,
-        child: const Icon(Icons.sports_martial_arts, color: Colors.white),
+            },
+            backgroundColor: Colors.redAccent,
+            child: const Icon(Icons.sports_martial_arts, color: Colors.white),
+          ),
+        ],
       ),
     );
+  }
+
+  void _showPvPSetupDialog() async {
+    Pet? pvpPet = await _persistence.loadPvPPet();
+
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('PvP Setup - Player 2'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                title: const Text('Load Player 2 Profile'),
+                subtitle: pvpPet == null ? const Text('No profile found') : Text('Level ${pvpPet.level} ${pvpPet.getStageName()}'),
+                enabled: pvpPet != null,
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _startPvPBattle(pvpPet!);
+                },
+              ),
+              ListTile(
+                title: const Text('Create Default Level 5 Pet'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  Pet newPet = Pet(name: 'Rival', level: 5);
+                  newPet.checkEvolution(); // Sync stage to level
+                  newPet.health = newPet.getMaxStat();
+                  newPet.energy = newPet.getMaxStat();
+                  _startPvPBattle(newPet);
+                },
+              ),
+            ],
+          ),
+        );
+      }
+    );
+  }
+
+  void _startPvPBattle(Pet p2Pet) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => PvPScreen(
+          player1Pet: _pet,
+          player2Pet: p2Pet,
+          soundService: widget.soundService,
+        )
+      )
+    );
+
+    widget.soundService.playBgm();
+    _saveGame();
+    _persistence.savePvPPet(p2Pet); // Save P2 state
+
+    // Check if P1 leveled up enough to evolve
+    await _checkEvolution();
+    setState(() {});
   }
 
   void _startBattle(Difficulty difficulty) async {
@@ -339,6 +456,9 @@ class _HomeScreenState extends State<HomeScreen> {
     // Resume BGM when returning from battle
     widget.soundService.playBgm();
     _saveGame();
+
+    // Check if pet leveled up enough to evolve
+    await _checkEvolution();
     setState(() {}); // refresh stats on home screen
   }
 }
