@@ -6,11 +6,11 @@ class StatBar extends StatelessWidget {
   final int maxValue;
 
   const StatBar({
-    Key? key,
+    super.key,
     required this.label,
     required this.value,
     this.maxValue = 100,
-  }) : super(key: key);
+  });
 
   Color get _barColor {
     if (value > 70) return Colors.green;

@@ -14,7 +14,7 @@ void main() async {
 class TamabrawlerApp extends StatelessWidget {
   final SoundService soundService;
 
-  const TamabrawlerApp({Key? key, required this.soundService}) : super(key: key);
+  const TamabrawlerApp({super.key, required this.soundService});
 
   @override
   Widget build(BuildContext context) {

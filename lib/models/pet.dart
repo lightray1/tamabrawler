@@ -25,6 +25,70 @@ class Pet {
   int get battleDefense => (level * 1.5).floor() + (energy ~/ 5);
   int get battleSpeed => (happiness ~/ 5) + (energy ~/ 5);
 
+  int getMaxStat() {
+    switch (stage) {
+      case PetStage.baby: return 100;
+      case PetStage.teen: return 150;
+      case PetStage.adult: return 200;
+    }
+  }
+
+  String getStageName() {
+    switch (stage) {
+      case PetStage.baby: return 'Baby';
+      case PetStage.teen: return 'Teen';
+      case PetStage.adult: return 'Adult';
+    }
+  }
+
+  bool checkEvolution() {
+    PetStage oldStage = stage;
+    if (level >= 16) {
+      stage = PetStage.adult;
+    } else if (level >= 6) {
+      stage = PetStage.teen;
+    } else {
+      stage = PetStage.baby;
+    }
+    return oldStage != stage;
+  }
+
+  bool _pendingEvolution = false;
+  bool get pendingEvolution => _pendingEvolution;
+
+  void clearEvolutionPending() {
+    _pendingEvolution = false;
+  }
+
+  bool levelUp(int gainedXp) {
+    xp += gainedXp;
+    bool evolved = false;
+
+    while (xp >= level * 100 && level < 30) {
+      xp -= level * 100;
+      level++;
+
+      int oldMax = getMaxStat();
+      if (checkEvolution()) {
+        evolved = true;
+        _pendingEvolution = true;
+        int newMax = getMaxStat();
+
+        // Scale stats proportionally
+        hunger = (hunger * newMax) ~/ oldMax;
+        happiness = (happiness * newMax) ~/ oldMax;
+        energy = (energy * newMax) ~/ oldMax;
+        health = (health * newMax) ~/ oldMax;
+      }
+    }
+    // Cap XP if max level
+    if (level >= 30) {
+      level = 30;
+      xp = 0;
+    }
+    return evolved;
+  }
+
   Pet({
     this.name = 'Tamabrawler',
     this.hunger = 70,

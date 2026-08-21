@@ -50,22 +50,19 @@ class PvEService {
   void onWaveComplete(Pet pet) {
     if (currentWave < 5) {
       // Pet recovers 10% HP between waves
-      pet.health = min(100, pet.health + 10);
+      pet.health = min(pet.getMaxStat(), pet.health + 10);
       currentWave++;
     }
   }
 
   void onBattleVictory(Pet pet, bool isBoss) {
-    pet.xp += isBoss ? 100 : 50;
-    // Add logic for level up if needed (could be simple threshold like 100 xp * level)
-    if (pet.xp >= pet.level * 100) {
-      pet.xp -= pet.level * 100;
-      pet.level++;
-    }
+    int gainedXp = isBoss ? 100 : 50;
+    pet.levelUp(gainedXp);
+
     // Random potion simulation (we don't have inventory yet in spec, but spec mentions it)
     // Could just heal health as a "potion"
     if (Random().nextDouble() < 0.3) {
-      pet.health = min(100, pet.health + 30); // Use potion immediately as we have no inventory model
+      pet.health = min(pet.getMaxStat(), pet.health + 30); // Use potion immediately as we have no inventory model
     }
   }
 

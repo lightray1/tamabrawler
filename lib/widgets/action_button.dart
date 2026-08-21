@@ -7,15 +7,15 @@ class ActionButton extends StatefulWidget {
   final Duration cooldown;
 
   const ActionButton({
-    Key? key,
+    super.key,
     required this.iconPath,
     required this.label,
     required this.onPressed,
     this.cooldown = const Duration(seconds: 3),
-  }) : super(key: key);
+  });
 
   @override
-  _ActionButtonState createState() => _ActionButtonState();
+  State<ActionButton> createState() => _ActionButtonState();
 }
 
 class _ActionButtonState extends State<ActionButton> with SingleTickerProviderStateMixin {
